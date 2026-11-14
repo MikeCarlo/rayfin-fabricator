@@ -343,9 +343,15 @@ mod tests {
     std::fs::create_dir_all(&dir).unwrap();
     let exe = dir.join(if cfg!(windows) { "Fabricator.exe" } else { "Fabricator" });
 
-    let missing = locate_in(None, Some(exe.clone())).unwrap_err();
-    assert_eq!(missing.code, "binary-missing");
-    assert!(missing.message.contains(EXE_NAME));
+    let missing = locate_in(None, Some(exe.clone()));
+    if env!("RAYFIN_LOCAL_EMBEDDED") == "1" {
+      // The build embedded rayfin-local, so a missing neighbor is not an error.
+      assert!(missing.is_ok(), "{missing:?}");
+    } else {
+      let missing = missing.unwrap_err();
+      assert_eq!(missing.code, "binary-missing");
+      assert!(missing.message.contains(EXE_NAME));
+    }
 
     let sidecar = dir.join(EXE_NAME);
     std::fs::write(&sidecar, "").unwrap();
