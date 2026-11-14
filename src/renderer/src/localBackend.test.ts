@@ -1,6 +1,6 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './bridge'
 import type { LocalProblem, LocalReady, LocalStatus, StudioProject } from '@shared/ipc'
 import { api } from './api'
 import {
@@ -19,8 +19,7 @@ import {
   useLocalBackend
 } from './localBackend'
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
-vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }))
+vi.mock('./bridge', () => ({ invoke: vi.fn(), listen: vi.fn(async () => () => {}), Channel: class Channel {} }))
 
 function status(patch: Partial<LocalStatus> = {}): LocalStatus {
   return {

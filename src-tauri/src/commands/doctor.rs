@@ -638,7 +638,8 @@ mod tests {
     assert!(gh.name.contains("(gh)"));
     assert!(tool_by_id("copilot").is_none());
     assert!(!gh.required);
-    assert!(is_auto_installable(gh));
+    // winget on Windows, Homebrew on macOS. Linux has no system installer here.
+    assert_eq!(is_auto_installable(gh), cfg!(windows) || cfg!(target_os = "macos"));
     let sys = gh.system.as_ref().expect("gh system pkg");
     assert_eq!(sys.winget, Some("GitHub.cli"));
     assert_eq!(sys.brew, Some("gh"));

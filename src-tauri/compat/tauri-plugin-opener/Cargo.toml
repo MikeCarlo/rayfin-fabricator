@@ -1,0 +1,9 @@
+[package]
+name = "tauri-plugin-opener"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Opens URLs and folders from Fabricator's local server."
+
+[dependencies]
+tauri = { path = "../tauri" }

@@ -103,17 +103,44 @@ fn locate_in(env: Option<OsString>, exe: Option<PathBuf>) -> Result<Binary, Loca
     return Ok(if script { Binary::script(path) } else { Binary::executable(path) });
   }
   let path = exe.as_deref().and_then(Path::parent).map(|dir| dir.join(EXE_NAME));
-  match path {
-    Some(path) if path.is_file() => Ok(Binary::executable(path)),
-    path => Err(problem(
-      "binary-missing",
-      match path {
-        Some(path) => format!("The local backend (rayfin-local) that comes with Fabricator is missing from {}.", path.display()),
-        None => "Fabricator couldn't find the local backend (rayfin-local) that comes with it.".into(),
-      },
-      Some(REINSTALL),
-    )),
+  if let Some(path) = path.as_ref().filter(|path| path.is_file()) {
+    return Ok(Binary::executable(path.clone()));
   }
+  if let Some(path) = extract_embedded() {
+    return Ok(Binary::executable(path));
+  }
+  Err(problem(
+    "binary-missing",
+    match path {
+      Some(path) => format!("The local backend (rayfin-local) that comes with Fabricator is missing from {}.", path.display()),
+      None => "Fabricator couldn't find the local backend (rayfin-local) that comes with it.".into(),
+    },
+    Some("Run node scripts/rayfin-local/fetch.mjs before building, or set FABRICATOR_RAYFIN_LOCAL_BIN."),
+  ))
+}
+
+/// The copy `build.rs` embedded, written next to the executable on first use.
+fn extract_embedded() -> Option<PathBuf> {
+  if env!("RAYFIN_LOCAL_EMBEDDED") != "1" {
+    return None;
+  }
+  let bytes = include_bytes!("../../../assets/rayfin-local.bin");
+  if bytes.is_empty() {
+    return None;
+  }
+  let dir = crate::services::paths::cache_dir().join("rayfin-local");
+  let path = dir.join(EXE_NAME);
+  if path.is_file() && std::fs::metadata(&path).ok()?.len() == bytes.len() as u64 {
+    return Some(path);
+  }
+  std::fs::create_dir_all(&dir).ok()?;
+  std::fs::write(&path, bytes).ok()?;
+  #[cfg(unix)]
+  {
+    use std::os::unix::fs::PermissionsExt;
+    let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755));
+  }
+  Some(path)
 }
 
 /// What a finished rayfin-local command printed.

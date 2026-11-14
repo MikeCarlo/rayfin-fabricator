@@ -1,6 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { connect, currentWindowLabel, listen } from './bridge'
+import { getCurrentWindow } from './host/window'
+import PathPicker from './host/PathPicker'
 import { api } from './api'
 import App from './App'
 import AppWindow from './AppWindow'
@@ -16,6 +18,11 @@ import './assets/main.css'
 // Expose the Tauri-backed API as `window.api`, matching the contract the rest of
 // the renderer relies on (previously provided by the Electron preload bridge).
 window.api = api
+connect()
+void listen<{ url: string }>('apps:open', (event) => {
+  if (currentWindowLabel() !== 'main' || !event.payload.url) return
+  window.open(event.payload.url, '_blank', 'noopener')
+})
 
 // Record exceptions and rejections that never reach a `catch`, so the Help
 // assistant can explain them. Installed before the first render.
@@ -42,6 +49,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
           <UpdateProvider>
             <ToastProvider>
               <App />
+              <PathPicker />
             </ToastProvider>
           </UpdateProvider>
         </OverlayProvider>

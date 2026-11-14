@@ -11,7 +11,7 @@ import type {
 } from '@shared/ipc'
 import AppWindow, { PROMPT_DELAY_MS } from './AppWindow'
 
-vi.mock('@tauri-apps/api/window', () => ({
+vi.mock('./host/window', () => ({
   getCurrentWindow: () => ({ label: 'app-sales-1a2b3c4d' })
 }))
 

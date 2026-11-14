@@ -1,0 +1,10 @@
+[package]
+name = "tauri-plugin-dialog"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "In-app file and folder prompts for Fabricator's local server."
+
+[dependencies]
+tauri = { path = "../tauri" }
+tokio = { version = "1", features = ["rt"] }

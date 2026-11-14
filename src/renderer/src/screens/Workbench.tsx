@@ -9,7 +9,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type JSX,
 } from 'react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { getCurrentWindow } from '../host/window'
 import {
   type AdvisorFinding,
   type AppSettings,

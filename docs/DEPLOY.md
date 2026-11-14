@@ -8,7 +8,7 @@
 - Azure CLI (`az`) signed in to the Azure subscription that should host the telemetry resources (pass `-SubscriptionId` to override; otherwise the current `az` subscription is used)
 - GitHub CLI (`gh`) authenticated to `spatney/rayfin-fabricator` for automatic `APPINSIGHTS_CONNECTION_STRING` secret wiring
 - Node.js/npm for local builds
-- Rust toolchain (stable, MSVC) and the WebView2 runtime for `-BuildLocal` Tauri builds
+- Rust toolchain (stable) to build the `fabricator` executable locally. Running a downloaded executable does not need the Visual Studio C++ compiler or WebView2.
 
 ## What it provisions
 
@@ -39,7 +39,7 @@ The script writes `resources/telemetry.json` and `.deploy.state.json`. If `gh` i
 
 ## Cut a release
 
-Push a version tag to trigger the GitHub Actions release workflow that builds the Windows installer (Tauri/NSIS) and publishes it to a GitHub Release:
+Push a version tag to trigger CI, which builds `fabricator.exe` and publishes it on the GitHub Release:
 
 ```powershell
 git tag v0.1.0
@@ -55,21 +55,6 @@ New projects are created with `npm create @microsoft/rayfin@latest -- <folder> -
 
 ## Auto-update
 
-The app ships with Tauri's updater plugin. On startup (and via **Settings → Check for updates**) it fetches `latest.json` from the latest GitHub Release, downloads the new installer in the background, and prompts the user to restart and install.
+**Settings → Check for updates** asks GitHub for the latest release of this repository. When it is newer, Download saves `fabricator.exe` (or `fabricator-macos` / `fabricator-linux`) and Install replaces the running executable after it exits, then starts the new one. The release assets are the files `.github/workflows/ci.yml` attaches to tags named `v*`.
 
-### How the release workflow supports it
-
-`.github/workflows/release.yml` signs the installer with a minisign key and publishes three assets per release: `*-setup.exe`, `*-setup.exe.sig`, and a generated `latest.json` (version, notes, `pub_date`, and the `windows-x86_64` signature + download URL). The updater endpoint is `releases/latest/download/latest.json`, which always resolves to the most recent non-prerelease release — so keep releases non-prerelease.
-
-### Updater signing key (custody)
-
-Update packages are verified against the public key baked into `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`). The matching private key lives **only** in two GitHub Actions secrets and must be backed up offline:
-
-- `TAURI_SIGNING_PRIVATE_KEY` — the minisign private key.
-- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — its password.
-
-If the private key is lost, you cannot sign updates that existing clients will accept; recovery requires shipping a new public key in a build that users install manually. Generate a key with `npx @tauri-apps/cli signer generate -w <keyfile>` and set the secrets with `gh secret set`.
-
-### First-rollout caveat
-
-Auto-update only works for installs built **with** the updater (the first updater-enabled release onward). Users on an earlier build must install that first release manually; subsequent updates are automatic.
+There is no minisign updater manifest. The executable is whatever that GitHub Release published.

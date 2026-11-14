@@ -76,7 +76,7 @@ const advisorMock = vi.hoisted(() => ({
 }))
 /** Whether the mocked dependency guard reports the project's tools as unlocked. */
 const guardState = vi.hoisted(() => ({ ready: true }))
-vi.mock('@tauri-apps/api/window', () => ({
+vi.mock('../host/window', () => ({
   getCurrentWindow: () => ({ setTitle: vi.fn().mockResolvedValue(undefined) })
 }))
 vi.mock('../chatEventStore', () => ({ useChatEventStore: () => {} }))

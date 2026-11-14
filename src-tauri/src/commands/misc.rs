@@ -13,9 +13,8 @@ pub fn ping() -> &'static str {
   "pong"
 }
 
-/// Version info for the About/Settings panel. Under Tauri there is no Node/V8
-/// runtime, so the panel reports the app, Tauri framework, WebView2, bundled
-/// Copilot CLI and rayfin-local versions.
+/// Version info for the About/Settings panel: the app, the local server, the
+/// browser, the bundled Copilot CLI and rayfin-local.
 #[tauri::command]
 pub async fn get_versions(app: AppHandle) -> AppVersions {
   let app_version = app.package_info().version.to_string();
@@ -123,89 +122,23 @@ fn launch_vscode(dir: &str) -> bool {
     .is_ok()
 }
 
-/// Show the main window. It starts hidden and the renderer calls this once its
-/// first screen is on the page, so a launch never shows an empty window or the
-/// wrong theme's background. `background` (`#rrggbb`) is that screen's colour,
-/// used for any frame the page hasn't painted yet.
-///
-/// A plain `Window`, not a `WebviewWindow`: once the preview's child webview is
-/// added, the main window holds two webviews and is no longer the latter.
+/// The browser is already showing the page. Remember the window so later
+/// commands can name it, and keep the background colour check for the renderer.
 #[tauri::command]
 pub fn window_reveal(window: tauri::Window, background: Option<String>) {
-  if let Some(color) = background.as_deref().and_then(parse_hex_color) {
-    let _ = window.set_background_color(Some(color));
-  }
-  reveal(&window);
-}
-
-/// Show `window` the first time; later calls leave it alone (it may have been
-/// minimized or sent behind another window since).
-pub fn reveal(window: &tauri::Window) {
-  if window.is_visible().unwrap_or(true) {
-    return;
-  }
-  if let Err(error) = window.show() {
-    log::warn!("could not show the main window: {error}");
-  }
+  let _ = background.as_deref().and_then(parse_hex_color);
   let _ = window.set_focus();
 }
 
-/// Bring the main window to the front, for a second launch that handed it a file,
-/// or that asked for Fabricator itself. Opens it when Fabricator started only to
-/// run apps (see [`open_main_window`]).
+/// The page is a browser tab: ask it to come forward. There is no native window
+/// to create.
 pub fn bring_forward(app: &AppHandle) {
-  use tauri::Manager;
-  if let Some(window) = app.get_window("main") {
-    let _ = window.unminimize();
-    reveal(&window);
-    let _ = window.set_focus();
-    return;
-  }
-  // Not on the event loop: making a web view there can deadlock on Windows.
-  let app = app.clone();
-  tauri::async_runtime::spawn(async move {
-    if let Err(error) = open_main_window(&app) {
-      log::error!("could not open the main window: {error}");
-    }
-  });
+  let _ = app.window("main").set_focus();
 }
 
-/// Open Fabricator's own window (`app > windows` in tauri.conf.json, which
-/// doesn't create it, as a launch that only runs apps never shows it). Like
-/// the configured window it starts hidden, and the renderer shows it once its
-/// first screen is painted (see `window_reveal`); should the page never get
-/// that far, it shows anyway after a few seconds. Closing it while app windows
-/// stay open stops the projects' local backends, dev servers and
-/// terminals, which nothing shows anymore.
+/// The server has already opened the browser. Nothing else has to be created.
 pub fn open_main_window(app: &AppHandle) -> tauri::Result<()> {
-  use tauri::Manager;
-  if app.get_webview_window("main").is_some() {
-    return Ok(());
-  }
-  let Some(config) = app.config().app.windows.iter().find(|w| w.label == "main").cloned() else {
-    return Err(tauri::Error::WindowNotFound);
-  };
-  // Clipboard access lets the page read the clipboard without a prompt, for the
-  // terminal's Paste. The window only ever shows Fabricator's own page.
-  let window = tauri::WebviewWindowBuilder::from_config(app, &config)?.enable_clipboard_access().build()?;
-  let handle = app.clone();
-  window.on_window_event(move |event| {
-    if let tauri::WindowEvent::Destroyed = event {
-      let handle = handle.clone();
-      tauri::async_runtime::spawn(async move {
-        crate::services::dev_server::kill_all(&handle);
-        if let Some(terminals) = handle.try_state::<crate::services::terminal::Terminals>() {
-          terminals.kill_all(None);
-        }
-        crate::services::local_backend::stop_all(&handle).await;
-      });
-    }
-  });
-  let shown = window.as_ref().window();
-  std::thread::spawn(move || {
-    std::thread::sleep(std::time::Duration::from_secs(4));
-    reveal(&shown);
-  });
+  let _ = app.window("main");
   Ok(())
 }
 

@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './bridge'
 import { api } from './api'
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
-vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }))
+vi.mock('./bridge', () => ({ invoke: vi.fn(), listen: vi.fn(async () => () => {}), Channel: class Channel {} }))
 
 beforeEach(() => vi.clearAllMocks())
 

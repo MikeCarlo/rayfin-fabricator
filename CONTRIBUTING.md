@@ -68,13 +68,12 @@ Cargo may not be on `PATH`, so the explicit path above is often safest on Window
 
 ```text
 rayfin-fabricator/
-├─ src-tauri/                 Rust Tauri backend, IPC commands, services, resources, packaging
-│  ├─ src/commands/           IPC handlers: advisor, auth, chat, deploy (publishing), design, doctor, fabric, files, git, local, projects, settings, team, …
+├─ src-tauri/                 Rust server: commands, services, and the local web process
+│  ├─ src/commands/           Command handlers: advisor, auth, chat, deploy, doctor, fabric, files, git, local, projects, settings, team, …
 │  ├─ src/services/           exec, local_backend (the rayfin-local supervisor), preview, store, telemetry, history, crashlog, emit, paths, team, …
-│  ├─ binaries/               The rayfin-local sidecar, downloaded by scripts/rayfin-local (not committed)
-│  ├─ windows/                NSIS installer hooks that stop the sidecar before an update or uninstall
-│  ├─ vendor/wry/             Vendored wry: upstream crate + the patches in vendor/wry-patches
-│  └─ vendor/wry-patches/     WebView2 device-compliance SSO + macOS preview-positioning fix
+│  ├─ src/http/               axum server: static files, command routes, event WebSocket
+│  ├─ compat/                 The small Tauri-shaped types the commands still use
+│  └─ binaries/               The rayfin-local sidecar, downloaded by scripts/rayfin-local (not committed)
 ├─ src/renderer/              React 19 + TypeScript UI built with Vite
 │  ├─ screens/                SetupScreen onboarding and Workbench shell
 │  └─ components/             ChatPanel, PreviewPane, CodeViewer, DeploymentsControl, AdvisorView, GitControl, SettingsModal, …
@@ -195,24 +194,20 @@ npm run check:docs   # content lint
 - Include screenshots or notes for UI changes.
 - Update the docs site (`website/content/docs/`) when behavior, setup, or release steps change.
 
-## Vendored wry patches
-
-`src-tauri/vendor/wry` is the upstream `wry` crate plus the patches in `src-tauri/vendor/wry-patches` (WebView2 device-compliance SSO and the macOS preview position). When a Tauri upgrade moves the `wry` version, `cargo test` fails until you re-vendor it with `node scripts/wry/vendor-wry.mjs update <version>`. Change vendored files only through a patch: CI runs `npm run vendor:wry -- verify`. See `docs/VENDORED-WRY-PATCH.md` before changing Tauri or `wry`.
-
 ## The rayfin-local sidecar
 
-Fabricator runs [rayfin-local](https://github.com/spatney/rayfin-local) for each open personal project: it serves a Rayfin app and its whole backend locally, and keeps the app's local state in the project's `.rayfin-local/` folder. Fabricator supervises it (`src-tauri/src/services/local_backend/`), keeps its output in memory and under the logs folder with credentials masked, and controls it through its loopback-only control API. It ships inside the app as a Tauri sidecar (`bundle.externalBin` in `src-tauri/tauri.conf.json`): Cargo builds of `src-tauri` copy `src-tauri/binaries/rayfin-local-<target triple>[.exe]` next to the app's executable (for example to `src-tauri/target/debug/rayfin-local.exe`), and the Windows installer and the macOS app bundle install it there too.
+Fabricator runs [rayfin-local](https://github.com/spatney/rayfin-local) for each open personal project: it serves a Rayfin app and its whole backend locally, and keeps the app's local state in the project's `.rayfin-local/` folder. Fabricator supervises it (`src-tauri/src/services/local_backend/`), keeps its output in memory and under the logs folder with credentials masked, and controls it through its loopback-only control API. `scripts/rayfin-local/fetch.mjs` downloads the pinned release into `src-tauri/binaries/`. The server build embeds that file, and at runtime also accepts a copy next to the executable or `FABRICATOR_RAYFIN_LOCAL_BIN`.
 
 - `rayfin-local.json` pins the release and the SHA-256 of each platform's archive. `scripts/rayfin-local/fetch.mjs` downloads the archive, checks it against the pin and unpacks the binary with the system `tar`. A stamp file next to the binary skips the download until the pin changes.
-- `npm ci` runs the fetch but only warns when it can't, for example offline, or on Linux, which Fabricator doesn't ship for. `npm run dev`, `npm run build` and `npm run rayfin-local:fetch` fail instead. Add `-- --target <triple>` to fetch for another target, or `-- --force` to download again.
+- `npm ci` runs the fetch but only warns when it can't, for example offline, or on Linux, which `rayfin-local.json` does not pin. `npm run build` and `npm run rayfin-local:fetch` fail instead. Add `-- --target <triple>` to fetch for another target, or `-- --force` to download again.
 - To bundle a rayfin-local you built, for example while you change both repositories, set `FABRICATOR_RAYFIN_LOCAL_BIN` to its binary and run `npm run rayfin-local:fetch` or `npm run dev`. The fetch copies that binary without checking it, and the app runs the binary the variable names. Unset it and fetch again to go back to the pinned release.
 - To move to a new rayfin-local release, set `version` and each target's `archive` and `sha256` in `rayfin-local.json` from the release's `SHA256SUMS.txt`, and run `npm run rayfin-local:fetch`. When the Rayfin versions it supports change, set `sdk.supported` to the range its `version --json` reports. `sdk.newProjects` is the one line of those that new projects start on, and `sdk.tested` the release they start on when npm can't be reached: changing them moves new projects to another line. Apps can update to any line rayfin-local runs, and to newer releases with a warning.
-- The Windows installer and uninstaller stop a rayfin-local that runs from the install folder before they replace or remove it, and leave any other rayfin-local alone (`src-tauri/windows/installer-hooks.nsh`). An in-app update first waits, at most 20 seconds, until nothing uses Fabricator's or rayfin-local's executable: Fabricator is still exiting when the updater starts the installer, and Tauri's running-app check stops the update with "Failed to kill Rayfin Fabricator" when something that uses the executable can't be closed.
+- There is no installer. An update downloads the new executable and replaces this one after the process exits.
 - Apps installed from `.rayfin` files (`src-tauri/src/services/apps/`) run on the same sidecar with their own supervisor: `serve --static` on a port of their own, with `--reuse-build` (rayfin-local 0.2.4 and later) while the port stays the same. Development builds don't add them to the Windows Start menu, whose shortcuts would open the development build; set `FABRICATOR_DEV_SHORTCUTS=1` to try the shortcuts.
 
 ## Releases
 
-Pushing a version tag drives `.github/workflows/release.yml`. The release workflow builds the NSIS installer and injects the Application Insights connection string from the `APPINSIGHTS_CONNECTION_STRING` GitHub Actions secret into `resources/telemetry.json` at build time.
+Pushing a version tag (`v*`) drives `.github/workflows/ci.yml`. That workflow builds `fabricator.exe` (and the Linux and macOS binaries) and attaches them to a GitHub Release. It injects the Application Insights connection string from the `APPINSIGHTS_CONNECTION_STRING` secret into `resources/telemetry.json` for those tagged builds. Every other push and pull request uploads the same binaries as workflow artifacts.
 
 `deploy.ps1` is a maintainer-only script that provisions Azure Application Insights and sets that secret.
 
