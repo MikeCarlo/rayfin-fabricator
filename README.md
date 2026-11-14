@@ -13,8 +13,8 @@
 
   <p>
     <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
-    <img alt="Platform: Windows and macOS" src="https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS-0078D4.svg" />
-    <img alt="Built with Tauri" src="https://img.shields.io/badge/built%20with-Tauri-24C8DB.svg" />
+    <img alt="Platform: Windows, macOS, and Linux" src="https://img.shields.io/badge/platform-Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-0078D4.svg" />
+    <img alt="Runs in the browser" src="https://img.shields.io/badge/runs%20in-your%20browser-24C8DB.svg" />
   </p>
 </div>
 
@@ -32,7 +32,7 @@
 > **Personal project disclaimer**
 > Fabricator is a personal project built by Sachin Patney in his own free time. The author works at Microsoft, but this is not a Microsoft product and is not affiliated with, endorsed by, sponsored by, or supported by Microsoft.
 
-Building a Rayfin app usually means living in your terminal: scaffold with one CLI, prompt the Copilot CLI, run `rayfin up` to deploy, wrangle git, flip to a browser to check it, repeat. Fabricator folds all of that into a single desktop app.
+Building a Rayfin app usually means living in your terminal: scaffold with one CLI, prompt the Copilot CLI, run `rayfin up` to deploy, wrangle git, flip to a browser to check it, repeat. Fabricator folds all of that into one local app that opens in your browser. Nothing to install: download one executable and run it.
 
 You chat, the app gets built, you watch it come together inline, and you manage every published app from one panel. It runs on the **GitHub Copilot account you already have** — nothing new to sign up for.
 
@@ -44,7 +44,7 @@ Rayfin is Microsoft's **Backend-as-a-Service for the agentic era**. You define y
 
 ## Everything in one window
 
-1. **[Chat to build.](https://spatney.github.io/rayfin-fabricator/docs/build/chat)** Describe what you want in plain English. The built-in GitHub Copilot agent writes and edits the project files for you, and git quietly snapshots every change so you can diff and roll back.
+1. **[Chat to build.](https://spatney.github.io/rayfin-fabricator/docs/build/chat)** Describe what you want in plain English. The built-in GitHub Copilot agent writes and edits the project files for you. Grok CLI and Claude Code can do the same job once you install them and pick them on the chat composer. Git quietly snapshots every change so you can diff and roll back.
 2. **[See it as it's built.](https://spatney.github.io/rayfin-fabricator/docs/build/preview)** Watch the app in a live inline preview, point at anything in it with [Point & Edit](https://spatney.github.io/rayfin-fabricator/docs/build/touch-up), or clip and draw on a screenshot of it, to say what to change, and browse every file, its history and the data model.
 3. **[Publish with a click.](https://spatney.github.io/rayfin-fabricator/docs/ship/deploy)** Fabricator runs `rayfin up` for you to publish your app to Microsoft Fabric when you choose (or [after each successful chat turn](https://spatney.github.io/rayfin-fabricator/docs/ship/deploy#publish-after-each-chat-turn)), and lets you [share the app](https://spatney.github.io/rayfin-fabricator/docs/ship/share) with people in your tenant.
 4. **[Harden it.](https://spatney.github.io/rayfin-fabricator/docs/ship/advisor)** The Advisor grades your app's health with instant checks and an on-demand, read-only Copilot review, and every finding comes with a one-click fix.
@@ -55,18 +55,77 @@ Rayfin is Microsoft's **Backend-as-a-Service for the agentic era**. You define y
 
 ## Download
 
-Fabricator runs on **Windows 10/11** and **macOS (Apple Silicon)**.
+Fabricator is one file. It listens on `127.0.0.1` only, opens your browser, and serves the app from that process. There is no installer and nothing to compile on your PC.
+
+You need the [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli) (or another agent you pick) and the [Rayfin CLI](https://github.com/microsoft/rayfin) on your PATH. Fabricator does not need the Visual Studio C++ compiler, WebView2, or an installer.
 
 > **[⬇️ Download the latest release](https://github.com/spatney/rayfin-fabricator/releases/latest)**
 
-- **Windows:** run `Rayfin Fabricator_<version>_x64-setup.exe`. It's code-signed; if SmartScreen still warns about a new release, choose **More info → Run anyway**.
-- **macOS:** open `Rayfin Fabricator_<version>_aarch64.dmg` and drag the app into **Applications**. The build isn't notarized yet, so clear the quarantine flag once before opening it:
+Every push also uploads the executables as a workflow artifact on the [Actions](https://github.com/spatney/rayfin-fabricator/actions) run, before a release exists. A tag named `v*` (for example `v1.55.0`) attaches the same files to a GitHub Release.
 
-  ```bash
-  xattr -dr com.apple.quarantine "/Applications/Rayfin Fabricator.app"
-  ```
+- **Windows:** download `fabricator.exe` and double-click it, or run it from a terminal. A console window prints the address, for example `http://127.0.0.1:5173/?token=…`, and your browser opens there. If SmartScreen warns about a new file, choose **More info → Run anyway**.
+- **macOS:** download `fabricator-macos`, `chmod +x fabricator-macos`, and run it. The first launch may need a right-click → Open, because the file is not notarized.
+- **Linux:** download `fabricator-linux`, `chmod +x fabricator-linux`, and run it. The local Rayfin backend (`rayfin-local`) is bundled for Windows and macOS. On Linux, set `FABRICATOR_RAYFIN_LOCAL_BIN` to a `rayfin-local` binary you built, or projects preview through the published app instead.
 
-Then launch the app: setup checks your tools and signs you in to GitHub Copilot. Signing in to Azure is optional. The app keeps itself up to date. See the [install guide](https://spatney.github.io/rayfin-fabricator/docs/start/install) and [Build your first app](https://spatney.github.io/rayfin-fabricator/docs/start/first-app) for the full walkthrough.
+Close the console window (or press Ctrl+C) to quit. A second launch while one is running opens the browser again instead of starting another server.
+
+`5173` is the first port it tries. If something else is using it, including a Rayfin preview, Fabricator takes the next free port and prints that address.
+
+See the [install guide](https://spatney.github.io/rayfin-fabricator/docs/start/install) and [Build your first app](https://spatney.github.io/rayfin-fabricator/docs/start/first-app) for the walkthrough. Settings → Check for updates downloads a newer executable from the latest GitHub Release and restarts into it.
+
+## Grok CLI and Claude Code
+
+GitHub Copilot ships with Fabricator and stays the default chat agent. Grok CLI and Claude Code are optional. Fabricator does not bundle them. Install one (or both) on this computer, then pick it on the chat composer, to the left of the model picker. Each project keeps its own choice.
+
+This is separate from [using your own API keys](https://spatney.github.io/rayfin-fabricator/docs/build/your-own-api-keys). That setting adds Claude, GPT, Grok, and Gemini models to Copilot's model picker. Grok CLI and Claude Code are their own agents, signed in on this computer.
+
+If `grok` or `claude` is missing from your PATH, chat shows the install steps below when you pick that agent.
+
+### Grok CLI
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://x.ai/cli/install.ps1 | iex
+```
+
+**macOS:**
+
+```bash
+curl -fsSL https://x.ai/cli/install.sh | bash
+```
+
+**Either platform, with npm:**
+
+```bash
+npm install -g @xai-official/grok
+```
+
+Run `grok` and sign in in the browser, or set `XAI_API_KEY`. `grok --version` confirms it is on your PATH. Full docs: [Grok Build](https://x.ai/docs/build/overview).
+
+### Claude Code
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://claude.ai/install.ps1 | iex
+```
+
+**macOS:**
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
+```
+
+**npm**, on either platform:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+The [Claude Code setup guide](https://code.claude.com/docs/en/setup) also covers Homebrew, WinGet, and sign-in. Run `claude` and sign in, or set `ANTHROPIC_API_KEY`. `claude --version` confirms it is on your PATH.
+
+In Agent or Autopilot, the agent you picked can edit the project. Plan mode answers without applying edits.
 
 ## Documentation
 
@@ -81,16 +140,26 @@ The site's source is in [`website/`](./website); every page has an **Edit this p
 
 ## Build from source
 
-You'll need Windows 10/11 or macOS, Node.js 24 LTS (22.13+ also works), Rust stable (MSVC on Windows; Xcode command-line tools on macOS), the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/), and Git.
+You'll need Node.js 24 LTS (22.13+ also works), Rust stable, and Git. Windows CI builds with the Visual Studio compiler that GitHub's `windows-latest` runner already has. You do not need that compiler to *run* a downloaded `fabricator.exe`.
 
 ```bash
 git clone https://github.com/spatney/rayfin-fabricator.git
 cd rayfin-fabricator
 npm install
-npm run dev
+npm run rayfin-local:fetch
+npm run build:renderer
+cargo run --manifest-path src-tauri/Cargo.toml --bin fabricator
 ```
 
-`npm run build` builds the desktop app and its installer. See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for scripts, the project layout, architecture, and how to work on the docs site.
+`npm install` runs `scripts/rayfin-local/fetch.mjs`, which downloads the pinned [rayfin-local](https://github.com/spatney/rayfin-local) release (Windows and macOS; Linux warns and skips). The server build embeds that binary, and also looks beside the executable and at `FABRICATOR_RAYFIN_LOCAL_BIN`.
+
+For UI work, leave the server running and start the renderer dev server. It stays on port 1420 and proxies `/api` and `/ws` to the server (the address is in `src-tauri/.fabricator-dev.json`, which the server writes on each launch):
+
+```bash
+npm run dev:renderer
+```
+
+`npm run build` builds the renderer and then `fabricator` in release mode. See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for scripts, the project layout, and the docs site.
 
 ## Telemetry & privacy
 

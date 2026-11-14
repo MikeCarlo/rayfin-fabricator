@@ -125,22 +125,11 @@ fn shortcut_for(mut record: Record) -> Record {
   record
 }
 
-/// Give the app's window its own taskbar button, under the app's icon, which
-/// opens the app again when it's pinned. On the window's own thread, before it shows.
+/// The desktop build gave an app window its own taskbar button. Browser tabs
+/// have no native window handle, so there is nothing to identify. Start-menu
+/// shortcuts are unchanged (`create_shortcut`).
 #[cfg(windows)]
-pub(super) fn identify(window: &tauri::WebviewWindow, key: &str, name: &str) {
-  let Ok(exe) = std::env::current_exe() else { return };
-  let icon = super::app_dir(key).join(ICON_ICO);
-  let icon = icon.is_file().then_some(icon);
-  let relaunch = format!("\"{}\" {APP_FLAG} {key}", exe.display());
-  let (id, name, target) = (app_id(key), name.to_string(), window.clone());
-  let _ = window.run_on_main_thread(move || {
-    let Ok(hwnd) = target.hwnd() else { return };
-    if let Err(error) = imp::set_window_identity(hwnd, &id, &relaunch, &name, icon.as_deref()) {
-      log::warn!("[apps] couldn't give {name}'s window its own taskbar button: {error}");
-    }
-  });
-}
+pub(super) fn identify(_window: &tauri::WebviewWindow, _key: &str, _name: &str) {}
 
 #[cfg(windows)]
 mod imp {

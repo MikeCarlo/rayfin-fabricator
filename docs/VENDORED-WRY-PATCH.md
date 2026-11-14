@@ -1,5 +1,9 @@
 # Vendored `wry` patches
 
+The local web server does not link wry or a system webview, and `src-tauri/vendor` is no longer part of the build. The notes below describe the old desktop shell.
+
+# Vendored `wry` patches (old desktop shell)
+
 Fabricator builds a **vendored copy of the `wry` crate** (`src-tauri/vendor/wry`) instead of
 the crates.io release, so it can carry two small local patches. The vendored tree is always
 the exact upstream release plus the patch files in `src-tauri/vendor/wry-patches`, and

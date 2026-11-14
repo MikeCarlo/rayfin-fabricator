@@ -25,6 +25,9 @@ src-tauri/tauri.signing.conf.json
 
 # The rayfin-local sidecar, fetched by scripts/rayfin-local/fetch.mjs from the release rayfin-local.json pins
 src-tauri/binaries/
+# The copy build.rs embeds, and the dev server's launch token
+src-tauri/assets/rayfin-local.bin
+src-tauri/.fabricator-dev.json
 
 # Raw docs screenshot captures: may contain unscrubbed personal details
 scripts/docs-screenshots/shots/

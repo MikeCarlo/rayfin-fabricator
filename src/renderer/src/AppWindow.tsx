@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState, type JSX, type ReactNode } from 'react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { getCurrentWindow } from './host/window'
+import { listen } from './bridge'
 import type { AppActionResult, AppWindowInfo, LocalLogEvent, LocalStatus } from '@shared/ipc'
 import { errorMessage } from './errorReport'
 import { formatBytes, listNames } from './components/blueprint/localData'
@@ -91,6 +92,7 @@ export default function AppWindow(): JSX.Element {
   const [installingNode, setInstallingNode] = useState(false)
   const [restartNeeded, setRestartNeeded] = useState(false)
   const [armed, setArmed] = useState(false)
+  const [appUrl, setAppUrl] = useState<string | null>(null)
   const key = info?.key ?? ''
   const keyRef = useRef(key)
   keyRef.current = key
@@ -181,6 +183,30 @@ export default function AppWindow(): JSX.Element {
   }, [load])
 
   useEffect(() => {
+    let stop = (): void => {}
+    void listen<{ label: string; url: string }>('apps:navigate', (event) => {
+      if (event.payload.label !== label) return
+      const next = event.payload.url
+      if (!next || next.startsWith(location.origin)) {
+        setAppUrl(null)
+        void load()
+      } else {
+        setAppUrl(next)
+      }
+    }).then((unsubscribe) => {
+      stop = unsubscribe
+    })
+    const close = (): void => {
+      void window.api.apps.close().catch(() => undefined)
+    }
+    window.addEventListener('pagehide', close)
+    return () => {
+      stop()
+      window.removeEventListener('pagehide', close)
+    }
+  }, [label, load])
+
+  useEffect(() => {
     const off = [
       window.api.apps.onWindow((target) => {
         if (target === label) void load()
@@ -266,6 +292,10 @@ export default function AppWindow(): JSX.Element {
   const failed = stage.kind === 'failed' ? stage : null
   const needsNode = failed?.code !== undefined && NODE_CODES.has(failed.code)
   const asks = stage.kind === 'ask' && file !== undefined
+
+  if (appUrl) {
+    return <iframe className="app-window-frame" title={name} src={appUrl} />
+  }
 
   return (
     <main

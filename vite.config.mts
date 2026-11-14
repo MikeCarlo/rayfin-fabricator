@@ -1,7 +1,19 @@
+import { existsSync, readFileSync } from 'fs'
 import { resolve } from 'path'
-import { defineConfig } from 'vite'
+import { defineConfig, type ProxyOptions } from 'vite'
 import react from '@vitejs/plugin-react'
 import { docsIndexPlugin } from './scripts/docs-index.mjs'
+
+function fabricatorDev(): { port: number; token: string } {
+  const file = resolve(import.meta.dirname, 'src-tauri/.fabricator-dev.json')
+  if (!existsSync(file)) return { port: Number(process.env.FABRICATOR_PORT || 5173), token: '' }
+  try {
+    const saved = JSON.parse(readFileSync(file, 'utf8')) as { port?: number; token?: string }
+    return { port: saved.port || 5173, token: saved.token || '' }
+  } catch {
+    return { port: 5173, token: '' }
+  }
+}
 
 // Vite config for the React renderer, built/served for the Tauri shell.
 // The renderer source lives under src/renderer (entry: src/renderer/index.html →
@@ -31,17 +43,15 @@ export default defineConfig({
   // Expose TAURI_* env vars to the client so build-time platform info is available.
   envPrefix: ['VITE_', 'TAURI_ENV_'],
   server: {
-    // Fabricator's own renderer dev server uses 1420 (Tauri's default) so that
-    // port 5173 stays free for a project's live local-preview Vite server — it's
-    // Rayfin's default allowed sign-in origin; any other port must be registered
-    // in the app's rayfin.yml. Keep in sync with `src-tauri/tauri.conf.json`
-    // (`build.devUrl`).
+    // The renderer dev server stays on 1420. The Rust server defaults to 5173
+    // (and moves if that port is busy). API calls and the event socket are
+    // proxied there, with the launch token added so the page doesn't have it.
     port: 1420,
     strictPort: true,
     host: host || false,
     hmr: host ? { protocol: 'ws', host, port: 1421 } : undefined,
+    proxy: fabricatorProxy(),
     watch: {
-      // Don't watch the Rust crate from the Vite dev server.
       ignored: ['**/src-tauri/**']
     }
   },
@@ -52,3 +62,20 @@ export default defineConfig({
     sourcemap: false
   }
 })
+
+function fabricatorProxy(): Record<string, ProxyOptions> {
+  const dev = fabricatorDev()
+  const target = `http://127.0.0.1:${dev.port}`
+  const headers = dev.token ? { Authorization: `Bearer ${dev.token}` } : undefined
+  return {
+    '/api': { target, headers },
+    '/ws': {
+      target: target.replace('http', 'ws'),
+      ws: true,
+      rewrite: (path) => {
+        if (!dev.token) return path
+        return path.includes('?') ? `${path}&token=${dev.token}` : `${path}?token=${dev.token}`
+      }
+    }
+  }
+}

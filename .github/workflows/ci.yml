@@ -5,11 +5,11 @@ on:
     paths-ignore:
       - 'website/**'
   push:
-    branches:
-      - main
-      - master
     paths-ignore:
       - 'website/**'
+
+permissions:
+  contents: write
 
 jobs:
   node:
@@ -44,69 +44,109 @@ jobs:
       - name: Check renderer build
         run: npm run check:build
 
-      - name: Check vendored wry
-        # src-tauri/vendor/wry must be the upstream crate plus src-tauri/vendor/wry-patches.
-        run: npm run vendor:wry -- verify
-
-  cargo-check:
-    name: Cargo check
-    runs-on: windows-latest
+  server:
+    name: Server (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: fabricator.exe
+            asset: fabricator.exe
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary: fabricator
+            asset: fabricator-linux
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary: fabricator
+            asset: fabricator-macos
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup Node for the sidecar fetch and helper regressions
+      - name: Setup Node
         uses: actions/setup-node@v7
         with:
           node-version: 24
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
 
+      - name: Cache bundled Copilot CLI archive
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/copilot-cli-cache
+          key: copilot-cli-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            copilot-cli-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build renderer
+        run: npm run build:renderer
+
       - name: Fetch rayfin-local sidecar
-        # tauri.conf.json bundles it (bundle.externalBin), so every Cargo build of src-tauri needs it.
-        run: node scripts/rayfin-local/fetch.mjs
+        # Embedded into the executable when this target is pinned in rayfin-local.json.
+        # Linux is not pinned; the fetch warns and the server looks beside the exe instead.
+        run: node scripts/rayfin-local/fetch.mjs --target ${{ matrix.target }} --optional
 
-      - name: Cargo check
-        run: cargo check --manifest-path src-tauri/Cargo.toml
+      - name: Write telemetry configuration
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node -e "const fs=require('fs');fs.mkdirSync('resources',{recursive:true});fs.writeFileSync('resources/telemetry.json',JSON.stringify({connectionString:process.env.CS||''},null,2))"
+        env:
+          CS: ${{ secrets.APPINSIGHTS_CONNECTION_STRING }}
 
-      - name: Test backend and CLI helpers
+      - name: Build fabricator
+        env:
+          BUNDLED_CLI_CACHE_DIR: ${{ runner.temp }}/copilot-cli-cache
+        run: cargo build --release --manifest-path src-tauri/Cargo.toml --bin fabricator --locked
+
+      - name: Test backend
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
 
-  cargo-check-macos:
-    name: Cargo check (macOS)
-    # The macOS-only code (the vendored wry's WKWebView patch, preview capture, objc2
-    # bindings) otherwise only compiles in the release workflow.
-    runs-on: macos-latest
+      - name: Stage the executable
+        shell: bash
+        run: |
+          mkdir -p dist-server
+          cp "src-tauri/target/release/${{ matrix.binary }}" "dist-server/${{ matrix.asset }}"
+
+      - name: Upload fabricator
+        uses: actions/upload-artifact@v7
+        with:
+          name: fabricator-${{ matrix.os }}
+          path: dist-server/${{ matrix.asset }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [server]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup Node for the sidecar fetch and helper regressions
-        uses: actions/setup-node@v7
+      - uses: actions/download-artifact@v8
         with:
-          node-version: 24
+          pattern: fabricator-*
+          merge-multiple: true
+          path: dist
 
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
         with:
-          workspaces: src-tauri
-
-      - name: Fetch rayfin-local sidecar
-        run: node scripts/rayfin-local/fetch.mjs
-
-      - name: Cargo check
-        run: cargo check --manifest-path src-tauri/Cargo.toml
-
-      - name: Test backend and CLI helpers
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib --locked
+          files: |
+            dist/fabricator.exe
+            dist/fabricator-linux
+            dist/fabricator-macos
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,5 +1,6 @@
-//! Chat engine: drives the GitHub Copilot CLI as the app's AI agent and maps its
-//! event stream into clean ChatEvents for the renderer.
+//! Chat engine: drives the selected coding agent and maps its event stream into
+//! clean ChatEvents for the renderer. GitHub Copilot is bundled. Grok CLI and
+//! Claude Code run when the project picks them and they are installed.
 //!
 //! Built on the GitHub Copilot Rust SDK: each project keeps one persistent
 //! [`Session`](github_copilot_sdk::session::Session) — created or resumed from
@@ -45,9 +46,9 @@ use crate::services::store;
 use crate::services::usage;
 use crate::state::{AppState, TurnRoute};
 use crate::types::{
-  AppSettings, ChatDefaults, ChatEvent, ChatFusion, ChatFusionModel, ChatMessage, ChatOptions, ChatPathInfo,
-  ChatPlanDependency, ChatPlanTodo, ChatToolCall, ChatToolState, ChatTurnResult, ChatUsage, CopilotModel,
-  CopilotQuota, McpServerEntry, SteerResult, StudioProject,
+  AgentOption, AppSettings, ChatDefaults, ChatEvent, ChatFusion, ChatFusionModel, ChatMessage, ChatOptions,
+  ChatPathInfo, ChatPlanDependency, ChatPlanTodo, ChatToolCall, ChatToolState, ChatTurnResult, ChatUsage,
+  CopilotModel, CopilotQuota, McpServerEntry, SteerResult, StudioProject,
 };
 
 /// Up to this many copilot invocations per turn on a transient pre-work failure.
@@ -1024,6 +1025,40 @@ pub(crate) async fn run_turn(
     });
   };
 
+  // Grok CLI and Claude Code take the whole turn. Copilot continues below.
+  // Checked before a Copilot session id is minted, so picking another agent
+  // does not start a Copilot session as a side effect.
+  if crate::services::agents::AgentKind::parse(project.agent.as_deref()).is_external() {
+    let Some(token) = state.try_begin_chat(&project_id) else {
+      emit_chat_event(
+        &app,
+        &project_id,
+        &turn_id,
+        ChatEvent::Error { text: "A message is already being processed for this project.".into() },
+      );
+      screenshot::cleanup(&attachments);
+      return Ok(ChatTurnResult {
+        ok: false,
+        error: Some("Turn already running.".into()),
+        files_modified: vec![],
+        ran_deploy: false,
+      });
+    };
+    return crate::services::agents::run_external_turn(
+      app,
+      state,
+      project,
+      project_id,
+      turn_id,
+      text,
+      attachments,
+      mode,
+      token,
+      _mutation,
+    )
+    .await;
+  }
+
   let Some(ctx_info) = resolve_context(&project_id) else {
     emit_chat_event(&app, &project_id, &turn_id, ChatEvent::Error { text: "Project not found.".into() });
     screenshot::cleanup(&attachments);
@@ -1674,7 +1709,11 @@ pub async fn chat_reset(state: State<'_, AppState>, project_id: String) -> Resul
   // Drop the cached SDK session so the next turn starts a brand-new conversation.
   state.copilot.forget(&project_id).await;
   history::clear_history(&project_id);
-  store::mutate_project(&project_id, |p| p.copilot_session_id = None);
+  store::mutate_project(&project_id, |p| {
+    p.copilot_session_id = None;
+    p.grok_session_id = None;
+    p.claude_session_id = None;
+  });
   Ok(())
 }
 
@@ -1850,13 +1889,34 @@ fn inspect_paths(paths: &[String]) -> Vec<ChatPathInfo> {
 
 #[tauri::command]
 pub fn chat_set_options(project_id: String, options: ChatOptions) {
-  let choice = ModelChoice::new(options.model, options.effort, options.auto_tier, options.context_tier);
   store::mutate_project(&project_id, |p| {
+    if let Some(agent) = options.agent.as_deref() {
+      p.agent = crate::services::agents::AgentKind::parse(Some(agent)).stored();
+    }
+    let kind = crate::services::agents::AgentKind::parse(p.agent.as_deref());
+    let mut choice = ModelChoice::new(options.model.clone(), options.effort.clone(), options.auto_tier.clone(), options.context_tier.clone());
+    if let Some(model) = choice.model.clone() {
+      if !crate::services::agents::accepts_model(kind, &model) {
+        choice = ModelChoice::default();
+      }
+    }
     p.model = choice.model;
     p.effort = choice.effort;
     p.auto_tier = choice.auto_tier;
     p.context_tier = choice.context_tier;
   });
+}
+
+/// The authoring agents the chat can use, and whether each CLI is installed.
+#[tauri::command]
+pub fn chat_agents() -> Vec<AgentOption> {
+  crate::services::agents::options()
+}
+
+/// Models for Grok CLI or Claude Code. Copilot's list stays on `chat_models`.
+#[tauri::command]
+pub fn chat_agent_models(agent: String) -> Vec<CopilotModel> {
+  crate::services::agents::models(&agent)
 }
 
 /// Turns a plugin on or off in a project's chat, from its next message, and

@@ -7,6 +7,8 @@ import type {
   StudioProject,
   TeamRunStatus
 } from '@shared/ipc'
+import pickAgentSource from '../../../../src-tauri/src/services/pick_agent.js?raw'
+import { listen, requestHeaders } from '../bridge'
 import { usePreviewSuppressed } from '../overlay'
 import { measurePreviewBounds, watchPreviewPixelRatio } from '../previewBounds'
 import {
@@ -607,8 +609,14 @@ export default function PreviewPane({
     if (deployedUrl) setDisplayUrl(deployedUrl)
   }, [deployedUrl])
   // A new target shows its own address straight away, before its page reports in.
+  const [frameUrl, setFrameUrl] = useState<string | null>(null)
+  const [frameKey, setFrameKey] = useState(0)
+  const frameRef = useRef<HTMLIFrameElement>(null)
   useEffect(() => {
-    if (previewUrl) setDisplayUrl(previewUrl)
+    if (previewUrl) {
+      setDisplayUrl(previewUrl)
+      setFrameUrl(previewUrl)
+    }
   }, [previewUrl])
 
   // The app's own page, for `onPageLoad`: what the surface shows now, read
@@ -619,7 +627,10 @@ export default function PreviewPane({
   // Subscribe to navigation state pushed from the native webview (Rust side).
   useEffect(() => {
     return window.api.preview.onNavState((s) => {
-      if (s.url) setDisplayUrl(s.url)
+      if (s.url) {
+        setDisplayUrl(s.url)
+        setFrameUrl(s.url)
+      }
       setLoading(s.loading)
       setCanBack(s.canGoBack)
       setCanForward(s.canGoForward)
@@ -633,6 +644,40 @@ export default function PreviewPane({
       }
     })
   }, [endTransition])
+
+  useEffect(() => {
+    let stop = (): void => {}
+    void listen('preview:reload', () => setFrameKey((key) => key + 1)).then((unsubscribe) => {
+      stop = unsubscribe
+    })
+    return () => stop()
+  }, [])
+
+  useEffect(() => {
+    let stop = (): void => {}
+    void listen<{ id: string; js: string }>('preview:eval', (event) => {
+      let result: string | null = null
+      try {
+        const view = frameRef.current?.contentWindow
+        if (view) {
+          const page = view as Window & { __fabricatorPick?: unknown; eval: (source: string) => unknown }
+          if (!page.__fabricatorPick && event.payload.js.includes('__fabricatorPick')) page.eval(pickAgentSource)
+          const value = page.eval(event.payload.js)
+          result = JSON.stringify(value ?? null)
+        }
+      } catch {
+        result = null
+      }
+      void fetch(`/api/eval/${encodeURIComponent(event.payload.id)}`, {
+        method: 'POST',
+        headers: requestHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ result })
+      })
+    }).then((unsubscribe) => {
+      stop = unsubscribe
+    })
+    return () => stop()
+  }, [])
 
   // Load a new target (a deployment / project switch or the Fabric toggle) while
   // the native surface stays hidden, so the stale page never shows. We navigate
@@ -1358,6 +1403,16 @@ export default function PreviewPane({
                 {/* The phone's outline, drawn around the host and outside its box,
                     which the native preview covers. */}
                 {phone && <span className="preview-phone" aria-hidden="true" />}
+                {frameUrl && (
+                  <iframe
+                    key={frameKey}
+                    ref={frameRef}
+                    className="preview-frame"
+                    title={`${project.name} preview`}
+                    src={frameUrl}
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+                  />
+                )}
                 {frozen && <img className="preview-frozen" src={frozen} alt="" draggable={false} />}
               </div>
             </div>

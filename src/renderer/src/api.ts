@@ -8,9 +8,7 @@
  * Tauri convention: command arguments are passed as a JSON object with camelCase
  * keys, which Tauri maps to the Rust command's snake_case parameters.
  */
-import { Channel, invoke } from '@tauri-apps/api/core'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { Channel, invoke, listen, requestHeaders, type InvokeEvent } from './bridge'
 import { serializePreviewMutations } from './previewSurface'
 import { isMac } from './platform'
 import {
@@ -67,11 +65,11 @@ import {
 import type { PickCommand, PickLocateTarget, PickSetOptions } from '@shared/pick'
 import { toLocalBackendError } from './localBackend'
 
-/** Subscribe to a Tauri event, returning a synchronous unsubscribe function. */
+/** Subscribe to a server event, returning a synchronous unsubscribe function. */
 function subscribe<T>(name: string, cb: (payload: T) => void): () => void {
-  let unlisten: UnlistenFn | undefined
+  let unlisten: (() => void) | undefined
   let cancelled = false
-  void listen<T>(name, (event) => cb(event.payload)).then((fn) => {
+  void listen<T>(name, (event: InvokeEvent<T>) => cb(event.payload)).then((fn) => {
     if (cancelled) fn()
     else unlisten = fn
   })
@@ -91,28 +89,41 @@ function dropPoint(position: { x: number; y: number }): { x: number; y: number }
   return { x: position.x / scale, y: position.y / scale }
 }
 
-/** Files and folders dragged onto the window from the OS, through the webview's drop handler. */
+/**
+ * Files dragged onto the page. The browser doesn't reveal their real paths, so
+ * the bytes are stored in a temporary folder and that path is what chat receives.
+ * Folders still need the in-app picker.
+ */
 function subscribeFileDrop(cb: (event: FileDropEvent) => void): () => void {
-  let unlisten: UnlistenFn | undefined
-  let cancelled = false
-  void getCurrentWebview()
-    .onDragDropEvent(({ payload }) => {
-      if (payload.type === 'leave') cb({ type: 'leave', paths: [], point: null })
-      else
-        cb({
-          type: payload.type,
-          paths: payload.type === 'over' ? [] : payload.paths,
-          point: dropPoint(payload.position)
-        })
-    })
-    .then((fn) => {
-      if (cancelled) fn()
-      else unlisten = fn
-    })
+  const pointOf = (event: DragEvent): { x: number; y: number } => dropPoint({ x: event.clientX, y: event.clientY })
+  const over = (event: DragEvent): void => {
+    if (!event.dataTransfer) return
+    event.preventDefault()
+    cb({ type: 'over', paths: [], point: pointOf(event) })
+  }
+  const leave = (): void => cb({ type: 'leave', paths: [], point: null })
+  const drop = (event: DragEvent): void => {
+    event.preventDefault()
+    const files = [...(event.dataTransfer?.files ?? [])]
+    if (files.length === 0) {
+      cb({ type: 'drop', paths: [], point: pointOf(event) })
+      return
+    }
+    const body = new FormData()
+    for (const file of files) body.append('file', file, file.name)
+    const point = pointOf(event)
+    void fetch('/api/fs/stage', { method: 'POST', headers: requestHeaders(), body })
+      .then((response) => response.json() as Promise<{ paths?: string[] }>)
+      .then((json) => cb({ type: 'drop', paths: json.paths ?? [], point }))
+      .catch(() => cb({ type: 'drop', paths: [], point }))
+  }
+  window.addEventListener('dragover', over)
+  window.addEventListener('dragleave', leave)
+  window.addEventListener('drop', drop)
   return () => {
-    cancelled = true
-    unlisten?.()
-    unlisten = undefined
+    window.removeEventListener('dragover', over)
+    window.removeEventListener('dragleave', leave)
+    window.removeEventListener('drop', drop)
   }
 }
 

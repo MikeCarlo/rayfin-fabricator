@@ -32,10 +32,41 @@ for (const [, , url] of html.matchAll(/<(?:script|link)\b[^>]*?\b(src|href)="([^
 }
 
 const csp = html.match(/http-equiv="Content-Security-Policy"\s+content="([^"]*)"/)?.[1]
-const sources = csp?.split(/[\s;]+/).filter((source) => !OWN_SCHEME_ORIGINS.includes(source))
 if (!csp) problems.push('index.html has no Content-Security-Policy meta tag')
-else if (sources.some((source) => /https?:|\*/.test(source)))
-  problems.push(`the Content-Security-Policy allows remote origins: ${csp}`)
+else {
+  // The preview is an iframe of a local app or a published https app. Scripts
+  // still have to come from this page. Loopback and https are allowed only on
+  // the directives that load the preview.
+  const allowedRemote = new Set([
+    'http://127.0.0.1:*',
+    'http://localhost:*',
+    'ws://127.0.0.1:*',
+    'ws://localhost:*',
+    'https:',
+    ...OWN_SCHEME_ORIGINS
+  ])
+  const directives = Object.fromEntries(
+    csp
+      .split(';')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const [name, ...sources] = part.split(/\s+/)
+        return [name, sources]
+      })
+  )
+  for (const source of directives['script-src'] ?? []) {
+    if (/https?:|\*/.test(source)) problems.push(`script-src allows a remote origin: ${source}`)
+  }
+  for (const [name, sources] of Object.entries(directives)) {
+    if (name === 'script-src') continue
+    for (const source of sources) {
+      if (/https?:|\*/.test(source) && !allowedRemote.has(source)) {
+        problems.push(`${name} allows ${source}`)
+      }
+    }
+  }
+}
 
 const assets = fs.readdirSync(path.join(DIST, 'assets'))
 for (const worker of WORKERS) {

@@ -119,7 +119,7 @@ export default function QuickLook({
               {failed}
             </p>
           ) : (
-            <p className="gquick-note">Loading {app.name}…</p>
+            <iframe className="gquick-frame" title={`Quick look at ${app.name}`} src={url} />
           )}
         </div>
       </div>
