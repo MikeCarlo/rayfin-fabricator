@@ -56,6 +56,7 @@ import {
 import type { OutboundPrompt, UIChatMessage } from './chat/types'
 import { suggestionsFor, useGeneratedSuggestions } from './chat/suggestions'
 import { SendIcon } from './chat/icons'
+import { AgentSelect } from './chat/AgentSelect'
 import { AddMenu, PluginsMenu } from './chat/ComposerMenus'
 import { UsageMeter } from './chat/UsageMeter'
 import { offeredPlugins } from './chat/plugins'
@@ -1999,6 +2000,13 @@ export default function ChatPanel({
                 onToggle={togglePlugin}
                 onManageServers={onManageMcpServers}
                 onLearnMore={() => openDocs('plugins')}
+              />
+              <AgentSelect
+                projectId={project.id}
+                agent={project.agent}
+                selection={selection}
+                disabled={sending}
+                onChanged={onOptionsChanged}
               />
               <ModelPicker
                 value={selection}

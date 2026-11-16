@@ -44,7 +44,7 @@ Rayfin is Microsoft's **Backend-as-a-Service for the agentic era**. You define y
 
 ## Everything in one window
 
-1. **[Chat to build.](https://spatney.github.io/rayfin-fabricator/docs/build/chat)** Describe what you want in plain English. The built-in GitHub Copilot agent writes and edits the project files for you, and git quietly snapshots every change so you can diff and roll back.
+1. **[Chat to build.](https://spatney.github.io/rayfin-fabricator/docs/build/chat)** Describe what you want in plain English. The built-in GitHub Copilot agent writes and edits the project files for you. Grok CLI and Claude Code can do the same job once you install them and pick them on the chat composer. Git quietly snapshots every change so you can diff and roll back.
 2. **[See it as it's built.](https://spatney.github.io/rayfin-fabricator/docs/build/preview)** Watch the app in a live inline preview, point at anything in it with [Point & Edit](https://spatney.github.io/rayfin-fabricator/docs/build/touch-up), or clip and draw on a screenshot of it, to say what to change, and browse every file, its history and the data model.
 3. **[Publish with a click.](https://spatney.github.io/rayfin-fabricator/docs/ship/deploy)** Fabricator runs `rayfin up` for you to publish your app to Microsoft Fabric when you choose (or [after each successful chat turn](https://spatney.github.io/rayfin-fabricator/docs/ship/deploy#publish-after-each-chat-turn)), and lets you [share the app](https://spatney.github.io/rayfin-fabricator/docs/ship/share) with people in your tenant.
 4. **[Harden it.](https://spatney.github.io/rayfin-fabricator/docs/ship/advisor)** The Advisor grades your app's health with instant checks and an on-demand, read-only Copilot review, and every finding comes with a one-click fix.
@@ -67,6 +67,60 @@ Fabricator runs on **Windows 10/11** and **macOS (Apple Silicon)**.
   ```
 
 Then launch the app: setup checks your tools and signs you in to GitHub Copilot. Signing in to Azure is optional. The app keeps itself up to date. See the [install guide](https://spatney.github.io/rayfin-fabricator/docs/start/install) and [Build your first app](https://spatney.github.io/rayfin-fabricator/docs/start/first-app) for the full walkthrough.
+
+## Grok CLI and Claude Code
+
+GitHub Copilot ships with Fabricator and stays the default chat agent. Grok CLI and Claude Code are optional. Fabricator does not bundle them. Install one (or both) on this computer, then pick it on the chat composer, to the left of the model picker. Each project keeps its own choice.
+
+This is separate from [using your own API keys](https://spatney.github.io/rayfin-fabricator/docs/build/your-own-api-keys). That setting adds Claude, GPT, Grok, and Gemini models to Copilot's model picker. Grok CLI and Claude Code are their own agents, signed in on this computer.
+
+If `grok` or `claude` is missing from your PATH, the composer marks that agent not installed. A message sent with it says the CLI isn't on this computer. Install it with the steps below, then pick it again.
+
+### Grok CLI
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://x.ai/cli/install.ps1 | iex
+```
+
+**macOS:**
+
+```bash
+curl -fsSL https://x.ai/cli/install.sh | bash
+```
+
+**Either platform, with npm:**
+
+```bash
+npm install -g @xai-official/grok
+```
+
+Run `grok` and sign in in the browser, or set `XAI_API_KEY`. `grok --version` confirms it is on your PATH. Full docs: [Grok Build](https://x.ai/docs/build/overview).
+
+### Claude Code
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://claude.ai/install.ps1 | iex
+```
+
+**macOS:**
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
+```
+
+**npm**, on either platform:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+The [Claude Code setup guide](https://code.claude.com/docs/en/setup) also covers Homebrew, WinGet, and sign-in. Run `claude` and sign in, or set `ANTHROPIC_API_KEY`. `claude --version` confirms it is on your PATH.
+
+In Agent or Autopilot, the agent you picked can edit the project. Plan mode stays on Copilot: Grok CLI and Claude Code ask you to switch to Agent, or to use Copilot, for that turn.
 
 ## Documentation
 

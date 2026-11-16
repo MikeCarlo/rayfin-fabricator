@@ -2569,6 +2569,36 @@ button.thinking-head:hover {
   margin-left: -6px;
 }
 
+/* Authoring agent, immediately left of the model picker. */
+.agent-select {
+  flex: none;
+  max-width: 9.5rem;
+  height: 26px;
+  margin: 0;
+  padding: 0 2px 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.agent-select:hover,
+.agent-select:focus-visible {
+  border-color: var(--border);
+  background: var(--bg-elev);
+}
+
+.agent-select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+.agent-select:disabled {
+  opacity: 0.55;
+}
+
 .composer-right {
   flex: none;
   display: inline-flex;

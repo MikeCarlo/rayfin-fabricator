@@ -702,6 +702,14 @@ pub struct StudioProject {
   pub last_deploy: Option<DeployInfo>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub copilot_session_id: Option<String>,
+  /// Which coding agent authors this project: absent or `"copilot"` (the default),
+  /// `"grok"`, or `"claude"`.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub agent: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub grok_session_id: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub claude_session_id: Option<String>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub workspace: Option<String>,
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -3251,9 +3259,24 @@ pub struct SteerResult {
   pub steered: bool,
 }
 
+/// One authoring agent the chat composer can pick.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentOption {
+  pub id: String,
+  pub name: String,
+  /// The CLI is on PATH.
+  pub installed: bool,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub hint: Option<String>,
+}
+
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatOptions {
+  /// `"copilot"`, `"grok"`, or `"claude"`. Absent leaves the project's agent as it is.
+  #[serde(default)]
+  pub agent: Option<String>,
   #[serde(default)]
   pub model: Option<String>,
   #[serde(default)]

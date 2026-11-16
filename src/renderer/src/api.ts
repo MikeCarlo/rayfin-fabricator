@@ -449,6 +449,8 @@ export const api: RayfinStudioApi = {
       invoke('chat_save_history', { projectId, messages }),
     setOptions: (projectId: string, options: ChatOptions) =>
       invoke('chat_set_options', { projectId, options }),
+    agents: () => invoke('chat_agents'),
+    agentModels: (agent: string) => invoke('chat_agent_models', { agent }),
     setPlugin: (projectId: string, plugin: ChatPluginId, on: boolean) =>
       invoke('chat_set_plugin', { projectId, plugin, on }),
     listModels: () => invoke('chat_models'),

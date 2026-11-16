@@ -1582,6 +1582,15 @@ export interface StudioProject {
   /** Persisted Copilot CLI session id so chat resumes across restarts. */
   copilotSessionId?: string
   /**
+   * Which coding agent authors this project: absent or `'copilot'` (the default),
+   * `'grok'`, or `'claude'`. Grok CLI and Claude Code run only when installed.
+   */
+  agent?: string
+  /** Persisted Grok CLI session id, cleared with the chat. */
+  grokSessionId?: string
+  /** Persisted Claude Code session id, cleared with the chat. */
+  claudeSessionId?: string
+  /**
    * Last Fabric workspace target used for deploys (display name, portal URL,
    * or GUID). Remembered after the user picks one so subsequent deploys reuse
    * it without re-prompting.
@@ -3039,7 +3048,22 @@ export interface AdvisorEventEnvelope {
 }
 
 /** Per-project chat configuration (model, reasoning effort and tiers). */
+/** One authoring agent the chat composer can pick. */
+export interface AgentOption {
+  /** `'copilot'`, `'grok'`, or `'claude'`. */
+  id: string
+  name: string
+  /** The CLI is on PATH. Copilot is always reported installed. */
+  installed: boolean
+  /** Why it can't be picked, when it isn't installed. */
+  hint?: string
+}
+
 export interface ChatOptions {
+  /**
+   * `'copilot'`, `'grok'`, or `'claude'`. Absent leaves the project's agent as it is.
+   */
+  agent?: string
   /** Copilot model id (`--model`); 'auto' or undefined lets Copilot pick. */
   model?: string
   /** Reasoning effort (`--effort`). */
@@ -4529,8 +4553,12 @@ export interface RayfinStudioApi {
     history: (projectId: string) => Promise<ChatMessage[]>
     /** Persist the conversation history for a project (empty array clears it). */
     saveHistory: (projectId: string, messages: ChatMessage[]) => Promise<void>
-    /** Set the model, reasoning effort and tiers used for this project's chat. */
+    /** Set the agent, model, reasoning effort and tiers used for this project's chat. */
     setOptions: (projectId: string, options: ChatOptions) => Promise<void>
+    /** The authoring agents the chat can use, and whether each CLI is installed. */
+    agents: () => Promise<AgentOption[]>
+    /** Models for Grok CLI or Claude Code. Copilot's list stays on {@link listModels}. */
+    agentModels: (agent: string) => Promise<CopilotModel[]>
     /**
      * Turn a plugin on or off in this project's chat, from its next message.
      * Resolves to the plugins now on there.

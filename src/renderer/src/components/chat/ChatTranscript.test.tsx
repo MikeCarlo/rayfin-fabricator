@@ -20,6 +20,7 @@ function installApi(): { send: ReturnType<typeof vi.fn> } {
       suggest: vi.fn(() => Promise.resolve({ ok: false, suggestions: [] })),
       cancelSuggest: vi.fn(() => Promise.resolve(true)),
       setOptions: vi.fn(() => Promise.resolve(undefined)),
+      agents: vi.fn(() => Promise.resolve([{ id: 'copilot', name: 'GitHub Copilot', installed: true }])),
       listModels: vi.fn(() => Promise.resolve([])),
       send,
       steer: vi.fn(() => Promise.resolve({ steered: true })),

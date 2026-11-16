@@ -504,6 +504,8 @@ pub fn run() {
       commands::chat::chat_set_options,
       commands::chat::chat_set_plugin,
       commands::chat::chat_models,
+      commands::chat::chat_agents,
+      commands::chat::chat_agent_models,
       commands::chat::chat_auto_tiers,
       commands::chat::chat_usage,
       commands::chat::chat_quota,
