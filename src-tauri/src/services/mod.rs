@@ -2,6 +2,7 @@
 //! persistence, paths, event emission, telemetry, crash logging).
 
 pub mod agent_skills;
+pub mod agents;
 pub mod agent_tools;
 pub mod apps;
 pub mod byok;
